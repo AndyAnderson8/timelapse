@@ -54,12 +54,12 @@ public class Main {
       System.out.print("Enter how many hours the timelapse should cover: ");
       double duration = scanner.nextDouble();
       if (duration > 0) {
-        int maxFrames = (int) (Math.ceil((3600 * duration) / refreshTime)); // rounds up three decimals
+        int maxFrames = (int) (Math.ceil((3600 * duration) / refreshTime));
         System.out.print("Enter how many frames should be used (max " + maxFrames + "): ");
         int frameCount = scanner.nextInt();
         if (frameCount > 0 && frameCount <= maxFrames) {
-          String minimumLength = removeTrailingZeros(Math.ceil((1000 * frameCount) / 60) / 1000); // sanitizes 3 decimals
-          System.out.print("Enter how many seconds long the final timelapse should be (min " + minimumLength + "): ");
+          double minimumLength = (Math.ceil((1000 * frameCount) / 60.0) / 1000); // round up three decimals
+          System.out.print("Enter how many seconds long the final timelapse should be (min " + removeTrailingZeros(minimumLength) + "): ");
           double timelapseLength = scanner.nextDouble();
           int delay = (int) ((1000 * timelapseLength) / frameCount);
           if (delay > (1000 / 60)) { // minimum delay for a gif, ~60fps 
@@ -70,6 +70,7 @@ public class Main {
             BufferedImage[] downloadedImages = imageFetcher(imageURL, savePath, waitTime, frameCount);
             System.out.println("\nImages downloaded, creating timelapse gif...");
             gifCreator(downloadedImages, savePath, delay);
+            System.out.println();
           } else {
             System.out.println("Timelapse length is too short");
           }
@@ -90,7 +91,8 @@ public class Main {
   public static String removeTrailingZeros(double number) {
     String returnString = ("" + number);
     while (true) {
-      if (returnString.charAt(returnString.length()) == '0') {
+      char lastChar = returnString.charAt(returnString.length() - 1);
+      if (lastChar == '0' || lastChar == '.') {
         returnString = returnString.substring(0, (returnString.length() - 1));
       } else {
         return returnString;
@@ -121,20 +123,33 @@ public class Main {
   }
 
   /**
+   * Creates a directory if it doesn't already exist and deletes all files from it.
+   */
+  public static void cleanDirectory(String path) {
+    new File(path).mkdirs();
+    File[] files = new File(path).listFiles();
+    if (files.length > 0) {
+      for (File file : files) {
+        file.delete();
+      }
+    }
+  }
+
+  /**
    * Scrapes and saves images from specified URL at specified intervals to specified path.
    * Returns array of all scraped images as BufferedImages.
    */
   public static BufferedImage[] imageFetcher(String imageURL, String savePath, long waitTime, int frameCount) {
-    String sourceImagesPath = (savePath + "\\timelapseSourceImages");
+    savePath += "\\timelapseSourceImages";
     BufferedImage[] images = new BufferedImage[frameCount];
     int digitsInFrameCount = String.valueOf(frameCount).length();
-    new File(sourceImagesPath).mkdirs();
+    cleanDirectory(savePath);
     for (int i = 0; i < frameCount; i++) {
       String formattedImageCount = String.format("%0" + digitsInFrameCount + "d", i + 1); // needed for image sorting
-      String truePath = sourceImagesPath + "\\image" + formattedImageCount + ".jpg";
+      String truePath = savePath + "\\image" + formattedImageCount + ".jpg";
       try {
         images[i] = ImageIO.read(new URL(imageURL));
-        ImageIO.write(images[i], "jpeg", new File(truePath));
+        ImageIO.write(images[i], "jpg", new File(truePath));
         System.out.println("(" + formattedImageCount + "/" + frameCount + ") New image saved to " + truePath);
       } catch (IOException e) {
         System.out.println("Error saving to " + truePath);
@@ -157,9 +172,9 @@ public class Main {
    */
   public static void gifCreator(BufferedImage[] sourceImages, String savePath, int delay) {
     AnimatedGifEncoder gif = new AnimatedGifEncoder();
-    String truePath = (savePath + "\\timelapse.gif");
+    savePath += "\\timelapse.gif";
     try {
-      OutputStream file = new FileOutputStream(truePath);
+      OutputStream file = new FileOutputStream(savePath);
       gif.start(file);
       gif.setDelay(delay);
       for (BufferedImage image : sourceImages) {
@@ -168,7 +183,7 @@ public class Main {
         }
       }
       gif.finish();
-      System.out.println("Created gif successfully! - Saved to " + truePath);
+      System.out.println("Created gif successfully! - Saved to " + savePath);
     } catch (IOException e) {
       System.out.println("Error with gif creation");
     }
